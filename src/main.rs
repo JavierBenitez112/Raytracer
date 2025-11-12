@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 
 mod framebuffer;
 mod ray_intersect;
-mod sphere;
+mod cube;
 mod camera;
 mod light;
 mod material;
@@ -11,7 +11,7 @@ mod textures;
 
 use framebuffer::Framebuffer;
 use ray_intersect::{Intersect, RayIntersect};
-use sphere::Sphere;
+use cube::Cube;
 use camera::Camera;
 use light::Light;
 use material::{Material, vector3_to_color};
@@ -19,6 +19,9 @@ use textures::TextureManager;
 
 const ORIGIN_BIAS: f32 = 1e-4;
 const SKYBOX_COLOR: Vector3 = Vector3::new(0.26, 0.55, 0.89);
+const GRID_SIZE: usize = 10;
+const CUBE_SIZE: f32 = 0.5;
+const CUBE_SPACING: f32 = 0.6;
 
 fn offset_origin(intersect: &Intersect, direction: &Vector3) -> Vector3 {
     let offset = intersect.normal * ORIGIN_BIAS;
@@ -59,7 +62,7 @@ fn refract(incident: &Vector3, normal: &Vector3, refractive_index: f32) -> Optio
 fn cast_shadow(
     intersect: &Intersect,
     light: &Light,
-    objects: &[Sphere],
+    objects: &[Cube],
 ) -> f32 {
     let light_dir = (light.position - intersect.point).normalized();
     let light_distance = (light.position - intersect.point).length();
@@ -79,7 +82,7 @@ fn cast_shadow(
 pub fn cast_ray(
     ray_origin: &Vector3,
     ray_direction: &Vector3,
-    objects: &[Sphere],
+    objects: &[Cube],
     light: &Light,
     texture_manager: &TextureManager,
     depth: u32,
@@ -181,7 +184,7 @@ pub fn cast_ray(
 
 pub fn render(
     framebuffer: &mut Framebuffer,
-    objects: &[Sphere],
+    objects: &[Cube],
     camera: &Camera,
     light: &Light,
     texture_manager: &TextureManager,
@@ -213,6 +216,131 @@ pub fn render(
     }
 }
 
+fn get_material_from_letter(letter: char) -> Option<Material> {
+    match letter {
+        'R' => Some(Material::new(
+            Vector3::new(0.8, 0.2, 0.2),
+            10.0,
+            [0.9, 0.1, 0.0, 0.0],
+            0.0,
+            None,
+            None,
+        )),
+        'B' => Some(Material::new(
+            Vector3::new(0.8, 0.4, 0.2),
+            20.0,
+            [0.8, 0.2, 0.0, 0.0],
+            0.0,
+            None,
+            None,
+        )),
+        'I' => Some(Material::new(
+            Vector3::new(0.4, 0.4, 0.3),
+            50.0,
+            [0.6, 0.3, 0.1, 0.0],
+            0.0,
+            None,
+            None,
+        )),
+        'G' => Some(Material::new(
+            Vector3::new(0.6, 0.7, 0.8),
+            125.0,
+            [0.0, 0.5, 0.1, 0.8],
+            1.5,
+            None,
+            None,
+        )),
+        'Y' => Some(Material::new(
+            Vector3::new(0.9, 0.9, 0.2),
+            30.0,
+            [0.7, 0.3, 0.0, 0.0],
+            0.0,
+            None,
+            None,
+        )),
+        'P' => Some(Material::new(
+            Vector3::new(0.8, 0.2, 0.8),
+            15.0,
+            [0.8, 0.2, 0.0, 0.0],
+            0.0,
+            None,
+            None,
+        )),
+        'C' => Some(Material::new(
+            Vector3::new(0.2, 0.8, 0.8),
+            25.0,
+            [0.7, 0.3, 0.0, 0.0],
+            0.0,
+            None,
+            None,
+        )),
+        'W' => Some(Material::new(
+            Vector3::new(0.9, 0.9, 0.9),
+            40.0,
+            [0.6, 0.4, 0.0, 0.0],
+            0.0,
+            None,
+            None,
+        )),
+        'K' => Some(Material::new(
+            Vector3::new(0.1, 0.1, 0.1),
+            5.0,
+            [0.9, 0.1, 0.0, 0.0],
+            0.0,
+            None,
+            None,
+        )),
+        _ => None,
+    }
+}
+
+fn create_cube_from_letter(
+    letter: char,
+    grid_x: usize,
+    grid_y: usize,
+    layer: usize,
+) -> Option<Cube> {
+    if let Some(material) = get_material_from_letter(letter) {
+        let offset = (GRID_SIZE as f32 - 1.0) * CUBE_SPACING / 2.0;
+        let x = grid_x as f32 * CUBE_SPACING - offset;
+        let y = layer as f32 * CUBE_SPACING;
+        let z = grid_y as f32 * CUBE_SPACING - offset;
+        
+        Some(Cube {
+            center: Vector3::new(x, y, z),
+            size: CUBE_SIZE,
+            material,
+        })
+    } else {
+        None
+    }
+}
+
+fn create_cubes_from_layers(layers: &[&[&str]]) -> Vec<Cube> {
+    let mut cubes = Vec::new();
+    
+    for (layer_idx, layer) in layers.iter().enumerate() {
+        for (y, line) in layer.iter().enumerate() {
+            if y >= GRID_SIZE {
+                break;
+            }
+            
+            let chars: Vec<char> = line.chars().collect();
+            for (x, &ch) in chars.iter().enumerate() {
+                if x >= GRID_SIZE {
+                    break;
+                }
+                
+                if let Some(cube) = create_cube_from_letter(ch, x, y, layer_idx) {
+                    cubes.push(cube);
+                }
+            }
+        }
+    }
+    
+    cubes
+}
+
 fn main() {
     let window_width = 1300;
     let window_height = 900;
@@ -224,54 +352,52 @@ fn main() {
         .build();
 
     let mut texture_manager = TextureManager::new();
-    texture_manager.load_texture(&mut window, &thread, "assets/ball.png");
-    texture_manager.load_texture(&mut window, &thread, "assets/ball_normal.png");
-    texture_manager.load_texture(&mut window, &thread, "assets/bricks.png");
-    texture_manager.load_texture(&mut window, &thread, "assets/bricks_normal.png");
+    // texture_manager.load_texture(&mut window, &thread, "assets/ball.png");
+    // texture_manager.load_texture(&mut window, &thread, "assets/ball_normal.png");
+    // texture_manager.load_texture(&mut window, &thread, "assets/bricks.png");
+    // texture_manager.load_texture(&mut window, &thread, "assets/bricks_normal.png");
     let mut framebuffer = Framebuffer::new(window_width as u32, window_height as u32);
 
-    let rubber = Material::new(
-        Vector3::new(0.3, 0.1, 0.1),
-        10.0,
-        [0.9, 0.1, 0.0, 0.0],
-        0.0,
-        Some("assets/ball.png".to_string()),
-        Some("assets/ball_normal.png".to_string()),
-    );
-
-    let bricks = Material::new(
-        Vector3::new(0.8, 0.2, 0.1),
-        20.0,
-        [0.8, 0.2, 0.0, 0.0],
-        0.0,
-        Some("assets/bricks.png".to_string()),
-        Some("assets/bricks_normal.png".to_string()),
-    );
-
-    let ivory = Material::new(
-        Vector3::new(0.4, 0.4, 0.3),
-        50.0,
-        [0.6, 0.3, 0.1, 0.0],
-        0.0,
-        None,
-        None,
-    );
-
-    let glass = Material::new(
-        Vector3::new(0.6, 0.7, 0.8),
-        125.0,
-        [0.0, 0.5, 0.1, 0.8],
-        1.5,
-        None,
-        None,
-    );
-
-    let objects = [
-        Sphere { center: Vector3::new(0.0, 0.0, 0.0), radius: 1.0, material: rubber },
-        Sphere { center: Vector3::new(1.5, 0.0, -1.0), radius: 1.0, material: bricks },
-        Sphere { center: Vector3::new(-1.0, -1.0, 1.5), radius: 0.5, material: ivory },
-        Sphere { center: Vector3::new(-0.3, 0.3, 1.5), radius: 0.3, material: glass },
+    let layers = [
+        &[
+            "          ",
+            "          ",
+            "  RRRRRR  ",
+            "  R    R  ",
+            "  R    R  ",
+            "  R    R  ",
+            "  RRRRRR  ",
+            "          ",
+            "          ",
+            "          ",
+        ][..],
+        &[
+            "          ",
+            "   BBBB   ",
+            "  B    B  ",
+            "  B    B  ",
+            "  BBBBBB  ",
+            "  B    B  ",
+            "  B    B  ",
+            "   BBBB   ",
+            "          ",
+            "          ",
+        ][..],
+        &[
+            "    II    ",
+            "    II    ",
+            "    II    ",
+            "    II    ",
+            "    II    ",
+            "    II    ",
+            "  IIIIII  ",
+            "          ",
+            "          ",
+            "          ",
+        ][..],
     ];
+
+    let objects = create_cubes_from_layers(&layers);
 
     let mut camera = Camera::new(
         Vector3::new(0.0, 0.0, 5.0),
