@@ -8,6 +8,9 @@ pub struct Material {
     pub refractive_index: f32,
     pub texture_id: Option<String>,
     pub normal_map_id: Option<String>,
+    pub is_emissive: bool,
+    pub emission_intensity: f32,
+    pub emission_color: Vector3,
 }
 
 impl Material {
@@ -26,6 +29,32 @@ impl Material {
             refractive_index,
             texture_id,
             normal_map_id,
+            is_emissive: false,
+            emission_intensity: 0.0,
+            emission_color: Vector3::zero(),
+        }
+    }
+
+    pub fn new_emissive(
+        diffuse: Vector3,
+        specular: f32,
+        albedo: [f32; 4],
+        refractive_index: f32,
+        texture_id: Option<String>,
+        normal_map_id: Option<String>,
+        emission_intensity: f32,
+        emission_color: Vector3,
+    ) -> Self {
+        Material {
+            diffuse,
+            albedo,
+            specular,
+            refractive_index,
+            texture_id,
+            normal_map_id,
+            is_emissive: true,
+            emission_intensity,
+            emission_color,
         }
     }
 
@@ -37,6 +66,9 @@ impl Material {
             refractive_index: 0.0,
             texture_id: None,
             normal_map_id: None,
+            is_emissive: false,
+            emission_intensity: 0.0,
+            emission_color: Vector3::zero(),
         }
     }
 }

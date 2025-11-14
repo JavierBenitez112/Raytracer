@@ -7,13 +7,14 @@ struct CpuTexture {
     width: i32,
     height: i32,
     pixels: Vec<Vector3>, // Normalized RGB values
+    alphas: Vec<f32>, // Alpha channel values (0.0 to 1.0)
 }
 
 impl CpuTexture {
     fn from_image(image: &Image) -> Self {
         // Safe: Raylib handles pixel format internally
         let colors = image.get_image_data(); // Vec<Color>
-        let pixels = colors
+        let pixels: Vec<Vector3> = colors
             .iter()
             .map(|c| {
                 Vector3::new(
@@ -23,11 +24,17 @@ impl CpuTexture {
                 )
             })
             .collect();
+        
+        let alphas: Vec<f32> = colors
+            .iter()
+            .map(|c| c.a as f32 / 255.0)
+            .collect();
 
         CpuTexture {
             width: image.width,
             height: image.height,
             pixels,
+            alphas,
         }
     }
 }
@@ -87,6 +94,31 @@ impl TextureManager {
             }
         } else {
             Vector3::one()
+        }
+    }
+
+    pub fn get_pixel_alpha(
+        &self,
+        path: &str,
+        tx: u32,
+        ty: u32,
+    ) -> f32 {
+        if let Some(cpu_texture) = self.cpu_textures.get(path) {
+            let x = tx.min(cpu_texture.width as u32 - 1) as i32;
+            let y = ty.min(cpu_texture.height as u32 - 1) as i32;
+
+            if x < 0 || y < 0 || x >= cpu_texture.width || y >= cpu_texture.height {
+                return 1.0; // default opaque
+            }
+
+            let index = (y * cpu_texture.width + x) as usize;
+            if index < cpu_texture.alphas.len() {
+                cpu_texture.alphas[index]
+            } else {
+                1.0
+            }
+        } else {
+            1.0
         }
     }
 

@@ -27,7 +27,8 @@ impl Cube {
             ((local.x / half_size + 1.0) / 2.0, (local.y / half_size + 1.0) / 2.0)
         };
         
-        (u, v)
+        // Invertir horizontal y verticalmente
+        (1.0 - u, 1.0 - v)
     }
 }
 

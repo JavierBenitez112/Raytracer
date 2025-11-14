@@ -32,6 +32,12 @@ impl Framebuffer {
         }
     }
 
+    pub fn set_pixel_color(&mut self, x: u32, y: u32, color: Color) {
+        if x < self.width && y < self.height {
+            self.color_buffer.draw_pixel(x as i32, y as i32, color);
+        }
+    }
+
     pub fn set_background_color(&mut self, color: Color) {
         self.background_color = color;
     }
